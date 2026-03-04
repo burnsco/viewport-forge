@@ -96,6 +96,7 @@ func (s *Server) handleCreateCapture(w http.ResponseWriter, r *http.Request) {
 //	GET /api/v1/captures/:id                     → job status
 //	GET /api/v1/captures/:id/screenshots         → list screenshots
 //	GET /api/v1/captures/:id/screenshots/:file   → serve PNG
+//	GET /api/v1/captures/:id/lighthouse-html     → serve Lighthouse HTML report
 func (s *Server) handleCaptureRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -120,6 +121,10 @@ func (s *Server) handleCaptureRoute(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.handleScreenshotList(w, r, jobID)
 		}
+	case len(parts) == 2 && parts[1] == "report":
+		s.handleReport(w, r, jobID)
+	case len(parts) == 2 && parts[1] == "lighthouse-html":
+		s.handleLighthouseHTML(w, r, jobID)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -174,10 +179,28 @@ func (s *Server) handleScreenshotList(w http.ResponseWriter, r *http.Request, jo
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"job_id":      jobID,
 		"screenshots": screenshots,
 	})
+}
+
+func (s *Server) handleReport(w http.ResponseWriter, r *http.Request, jobID string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	filePath := filepath.Join(s.artifactsDir, jobID, "report.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleScreenshotFile(w http.ResponseWriter, r *http.Request, jobID, filename string) {
@@ -192,6 +215,16 @@ func (s *Server) handleScreenshotFile(w http.ResponseWriter, r *http.Request, jo
 	}
 
 	filePath := filepath.Join(s.artifactsDir, jobID, filename)
+	http.ServeFile(w, r, filePath)
+}
+
+func (s *Server) handleLighthouseHTML(w http.ResponseWriter, r *http.Request, jobID string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	filePath := filepath.Join(s.artifactsDir, jobID, "lighthouse-report.html")
 	http.ServeFile(w, r, filePath)
 }
 
@@ -229,7 +262,7 @@ func randomID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func writeJSON(w http.ResponseWriter, code int, payload interface{}) {
+func writeJSON(w http.ResponseWriter, code int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(payload)

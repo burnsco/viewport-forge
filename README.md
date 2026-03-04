@@ -28,6 +28,9 @@ Upload a URL and Viewport Forge queues a capture job, runs Playwright across mul
   - 4K (`3840x2160`)
 - Poll job state (`queued`, `processing`, `completed`, `failed`).
 - Write screenshots to `artifacts/<job_id>/`.
+- Generate full Lighthouse artifacts per run:
+  - `report.json` (summary + full LHR JSON + copy-ready text report)
+  - `lighthouse-report.html` (native Lighthouse HTML report)
 
 ## Project layout
 
@@ -112,6 +115,18 @@ Response (`200 OK`):
   "screenshots": "5"
 }
 ```
+
+### `GET /api/v1/captures/:id/report`
+
+Returns the stored report payload, including:
+- `lighthouse` (compact summary)
+- `lighthouse_full` (full Lighthouse LHR JSON)
+- `lighthouse_text` (copy-ready text report)
+- `lighthouse_html_url` (API path to HTML report)
+
+### `GET /api/v1/captures/:id/lighthouse-html`
+
+Serves the full Lighthouse HTML report (`lighthouse-report.html`) for that capture.
 
 ## Near-term roadmap
 

@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun src/worker.mjs",
-    "dev": "bun --watch src/worker.mjs",
+    "start": "bun --env-file=../.env src/worker.mjs",
+    "dev": "bun --watch --env-file=../.env src/worker.mjs",
     "install:browsers": "playwright install chromium"
   },
   "dependencies": {
     "ioredis": "^5.10.0",
+    "lighthouse": "^12.4.0",
     "playwright": "^1.58.2"
   }
 }
