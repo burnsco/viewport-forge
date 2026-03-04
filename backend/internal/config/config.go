@@ -8,6 +8,7 @@ type Config struct {
 	QueueKey      string
 	StatusPrefix  string
 	AllowedOrigin string
+	ArtifactsDir  string
 }
 
 func Load() Config {
@@ -17,6 +18,7 @@ func Load() Config {
 		QueueKey:      getEnv("QUEUE_KEY", "vf:capture_jobs"),
 		StatusPrefix:  getEnv("STATUS_PREFIX", "vf:capture_status:"),
 		AllowedOrigin: getEnv("ALLOWED_ORIGIN", "http://localhost:5173"),
+		ArtifactsDir:  getEnv("ARTIFACTS_DIR", "../artifacts"),
 	}
 }
 

@@ -27,7 +27,10 @@ const redis = new Redis({
 let browser;
 
 async function start() {
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+  });
   console.log(`[worker] connected; waiting on queue ${QUEUE_KEY}`);
 
   while (true) {
@@ -92,8 +95,10 @@ async function captureViewport(url, viewport, outputDir) {
   const page = await context.newPage();
 
   await page.goto(url, { waitUntil: "networkidle", timeout: 45000 });
+  // Brief settle for JS-driven content after network quiet
+  await new Promise((r) => setTimeout(r, 800));
   const filePath = path.join(outputDir, `${sanitizeName(viewport.name)}.png`);
-  await page.screenshot({ path: filePath, fullPage: true });
+  await page.screenshot({ path: filePath, fullPage: false });
 
   await context.close();
 }

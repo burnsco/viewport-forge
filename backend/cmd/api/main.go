@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -24,7 +25,12 @@ func main() {
 	}
 	defer jobQueue.Close()
 
-	handler := httpapi.NewServer(jobQueue, cfg.AllowedOrigin)
+	artifactsDir, err := filepath.Abs(cfg.ArtifactsDir)
+	if err != nil {
+		log.Fatalf("invalid artifacts dir: %v", err)
+	}
+
+	handler := httpapi.NewServer(jobQueue, cfg.AllowedOrigin, artifactsDir)
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.APIPort,
 		Handler:      handler,

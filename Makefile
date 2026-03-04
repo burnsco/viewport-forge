@@ -1,8 +1,8 @@
 .PHONY: setup redis api worker web
 
 setup:
-	cd frontend && npm install
-	cd worker && npm install
+	cd frontend && bun install
+	cd worker && bun install
 	cd backend && go mod tidy
 
 redis:
@@ -12,7 +12,7 @@ api:
 	cd backend && go run ./cmd/api
 
 worker:
-	cd worker && npm run start
+	cd worker && bun run start
 
 web:
-	cd frontend && npm run dev
+	cd frontend && bun run dev

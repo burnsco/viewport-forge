@@ -141,6 +141,77 @@ h1 {
   color: #355ca8;
 }
 
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--brand-soft);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.screenshot-gallery {
+  margin-top: 2rem;
+}
+
+.gallery-heading {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+}
+
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.screenshot-item {
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #d4e2ff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.screenshot-label {
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.screenshot-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-top: 1px solid #e8efff;
+}
+
+.download-link {
+  display: block;
+  padding: 0.5rem 1rem;
+  text-align: center;
+  color: var(--brand);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-top: 1px solid #d4e2ff;
+}
+
+.download-link:hover {
+  background: var(--brand-soft);
+}
+
 .roadmap-strip {
   margin-top: 1.5rem;
   border-radius: 18px;

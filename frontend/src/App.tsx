@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 type JobStatus = Record<string, string> | null;
+type Screenshot = { name: string; url: string };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
@@ -20,11 +20,10 @@ function App() {
   const [status, setStatus] = useState<JobStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
 
   const stateLabel = useMemo(() => {
-    if (!status || !status.state) {
-      return "idle";
-    }
+    if (!status || !status.state) return "idle";
     return status.state;
   }, [status]);
 
@@ -32,6 +31,7 @@ function App() {
     event.preventDefault();
     setIsSubmitting(true);
     setError("");
+    setScreenshots([]);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/captures`, {
@@ -54,18 +54,14 @@ function App() {
     }
   }
 
+  // Poll job state
   useEffect(() => {
-    if (!jobID) {
-      return;
-    }
+    if (!jobID) return;
 
     const poll = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/v1/captures/${jobID}`);
-        if (!response.ok) {
-          return;
-        }
-
+        if (!response.ok) return;
         const payload = (await response.json()) as Record<string, string>;
         setStatus(payload);
       } catch {
@@ -77,6 +73,18 @@ function App() {
     const timer = window.setInterval(poll, 3000);
     return () => window.clearInterval(timer);
   }, [jobID]);
+
+  // Fetch screenshots when job completes
+  useEffect(() => {
+    if (status?.state !== "completed" || !jobID) return;
+
+    fetch(`${API_BASE_URL}/api/v1/captures/${jobID}/screenshots`)
+      .then((r) => r.json())
+      .then((data: { screenshots?: Screenshot[] }) => {
+        setScreenshots(data.screenshots ?? []);
+      })
+      .catch(() => {});
+  }, [status?.state, jobID]);
 
   return (
     <main className="page-shell">
@@ -108,20 +116,55 @@ function App() {
         <div className="status-strip">
           <span>Job: {jobID || "none"}</span>
           <span className={`pill pill-${stateLabel}`}>State: {stateLabel}</span>
-          {status?.output_dir ? <span>Output: {status.output_dir}</span> : null}
+          {status?.state === "processing" && (
+            <span className="spinner" aria-label="processing" />
+          )}
         </div>
 
         {error ? <p className="error-text">Error: {error}</p> : null}
       </section>
 
-      <section className="viewport-grid" aria-label="Default viewport targets">
-        {viewportProfiles.map((profile) => (
-          <article key={profile.name} className="viewport-card">
-            <h2>{profile.name}</h2>
-            <p>{profile.size}</p>
-          </article>
-        ))}
-      </section>
+      {screenshots.length > 0 && (
+        <section className="screenshot-gallery">
+          <h2 className="gallery-heading">Screenshots</h2>
+          <div className="screenshot-grid">
+            {screenshots.map((shot) => (
+              <div key={shot.name} className="screenshot-item">
+                <div className="screenshot-label">{shot.name}</div>
+                <a
+                  href={`${API_BASE_URL}${shot.url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    src={`${API_BASE_URL}${shot.url}`}
+                    alt={`${shot.name} screenshot`}
+                    loading="lazy"
+                  />
+                </a>
+                <a
+                  className="download-link"
+                  href={`${API_BASE_URL}${shot.url}`}
+                  download
+                >
+                  Download PNG
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {screenshots.length === 0 && (
+        <section className="viewport-grid" aria-label="Default viewport targets">
+          {viewportProfiles.map((profile) => (
+            <article key={profile.name} className="viewport-card">
+              <h2>{profile.name}</h2>
+              <p>{profile.size}</p>
+            </article>
+          ))}
+        </section>
+      )}
 
       <section className="roadmap-strip">
         <h3>Coming next</h3>

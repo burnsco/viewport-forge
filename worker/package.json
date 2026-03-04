@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/worker.mjs",
-    "dev": "node --watch src/worker.mjs",
+    "start": "bun src/worker.mjs",
+    "dev": "bun --watch src/worker.mjs",
     "install:browsers": "playwright install chromium"
   },
   "dependencies": {
-    "ioredis": "^5.8.1",
-    "playwright": "^1.52.0"
+    "ioredis": "^5.10.0",
+    "playwright": "^1.58.2"
   }
 }

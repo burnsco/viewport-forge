@@ -7,15 +7,24 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/corey-burns-dev/viewport-forge/backend/internal/queue"
 )
 
+var (
+	validJobID    = regexp.MustCompile(`^[0-9a-f]+$`)
+	validFilename = regexp.MustCompile(`^[a-z0-9_-]+\.png$`)
+)
+
 type Server struct {
 	queue         *queue.RedisQueue
 	allowedOrigin string
+	artifactsDir  string
 }
 
 type createCaptureRequest struct {
@@ -23,12 +32,12 @@ type createCaptureRequest struct {
 	Viewports []queue.Viewport `json:"viewports,omitempty"`
 }
 
-func NewServer(jobQueue *queue.RedisQueue, allowedOrigin string) http.Handler {
-	s := &Server{queue: jobQueue, allowedOrigin: allowedOrigin}
+func NewServer(jobQueue *queue.RedisQueue, allowedOrigin, artifactsDir string) http.Handler {
+	s := &Server{queue: jobQueue, allowedOrigin: allowedOrigin, artifactsDir: artifactsDir}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/captures", s.handleCreateCapture)
-	mux.HandleFunc("/api/v1/captures/", s.handleCaptureStatus)
+	mux.HandleFunc("/api/v1/captures/", s.handleCaptureRoute)
 	return s.withCORS(mux)
 }
 
@@ -82,19 +91,43 @@ func (s *Server) handleCreateCapture(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleCaptureStatus(w http.ResponseWriter, r *http.Request) {
+// handleCaptureRoute dispatches:
+//
+//	GET /api/v1/captures/:id                     → job status
+//	GET /api/v1/captures/:id/screenshots         → list screenshots
+//	GET /api/v1/captures/:id/screenshots/:file   → serve PNG
+func (s *Server) handleCaptureRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/v1/captures/")
+	parts := strings.SplitN(trimmed, "/", 3)
+
+	jobID := parts[0]
+	if jobID == "" || !validJobID.MatchString(jobID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid job id"})
 		return
 	}
 
-	jobID := strings.TrimPrefix(r.URL.Path, "/api/v1/captures/")
-	if jobID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing job id"})
+	switch {
+	case len(parts) == 1:
+		s.handleCaptureStatus(w, r, jobID)
+	case len(parts) >= 2 && parts[1] == "screenshots":
+		if len(parts) == 3 && parts[2] != "" {
+			s.handleScreenshotFile(w, r, jobID, parts[2])
+		} else {
+			s.handleScreenshotList(w, r, jobID)
+		}
+	default:
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+}
+
+func (s *Server) handleCaptureStatus(w http.ResponseWriter, r *http.Request, jobID string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
 
@@ -105,6 +138,61 @@ func (s *Server) handleCaptureStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, status)
+}
+
+func (s *Server) handleScreenshotList(w http.ResponseWriter, r *http.Request, jobID string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	dir := filepath.Join(s.artifactsDir, jobID)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no screenshots found"})
+		return
+	}
+
+	type screenshotInfo struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	}
+
+	var screenshots []screenshotInfo
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		filename := entry.Name()
+		if !validFilename.MatchString(filename) {
+			continue
+		}
+		name := strings.TrimSuffix(filename, ".png")
+		screenshots = append(screenshots, screenshotInfo{
+			Name: name,
+			URL:  "/api/v1/captures/" + jobID + "/screenshots/" + filename,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":      jobID,
+		"screenshots": screenshots,
+	})
+}
+
+func (s *Server) handleScreenshotFile(w http.ResponseWriter, r *http.Request, jobID, filename string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	if !validFilename.MatchString(filename) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid filename"})
+		return
+	}
+
+	filePath := filepath.Join(s.artifactsDir, jobID, filename)
+	http.ServeFile(w, r, filePath)
 }
 
 func (s *Server) withCORS(next http.Handler) http.Handler {
